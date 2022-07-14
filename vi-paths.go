@@ -102,10 +102,14 @@ func parseInstructions(before, after []string) ([]instruction, error) {
 		return depth(a) > depth(b)
 	})
 
+	const cmdCopy = "copy"
+
 	var instructions []instruction
 	for i := range before {
-		switch before, after := before[i], after[i]; {
-		case strings.TrimSpace(after) == "":
+		switch before, after := strings.TrimSpace(before[i]), strings.TrimSpace(after[i]); {
+		case strings.HasPrefix(after, fmt.Sprintf("%s ", cmdCopy)):
+			instructions = append(instructions, copy{from: before, to: strings.TrimSpace(strings.TrimPrefix(after, cmdCopy))})
+		case after == "":
 			instructions = append(instructions, remove{name: before})
 		case after != before:
 			instructions = append(instructions, rename{before: before, after: after})
@@ -139,6 +143,37 @@ func (v remove) String() string { return fmt.Sprintf("remove %s", v.name) }
 func (v remove) Execute() error {
 	if err := os.RemoveAll(v.name); err != nil {
 		return fmt.Errorf("exe remove all: %w", err)
+	}
+	return nil
+}
+
+type copy struct{ from, to string }
+
+func (c copy) String() string { return fmt.Sprintf("copy %s\n  -> %s", c.from, c.to) }
+func (c copy) Execute() error {
+	stat, err := os.Stat(c.from)
+	if err != nil {
+		return fmt.Errorf("exe stat: %w", err)
+	}
+	if stat.IsDir() {
+		if err := os.MkdirAll(c.to, stat.Mode()); err != nil {
+			return fmt.Errorf("exe mkdirall: %w", err)
+		}
+		return nil
+	}
+	parentStat, err := os.Stat(filepath.Dir(c.from))
+	if err != nil {
+		return fmt.Errorf("exe stat: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(c.to), parentStat.Mode()); err != nil {
+		return fmt.Errorf("exe mkdirall: %w", err)
+	}
+	input, err := os.ReadFile(c.from)
+	if err != nil {
+		return fmt.Errorf("exe read: %w", err)
+	}
+	if err := os.WriteFile(c.to, input, stat.Mode()); err != nil {
+		return fmt.Errorf("exe write: %w", err)
 	}
 	return nil
 }
