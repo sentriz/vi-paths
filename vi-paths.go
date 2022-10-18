@@ -102,13 +102,20 @@ func parseInstructions(before, after []string) ([]instruction, error) {
 		return depth(a) > depth(b)
 	})
 
-	const cmdCopy = "copy"
-
 	var instructions []instruction
 	for i := range before {
-		switch before, after := strings.TrimSpace(before[i]), strings.TrimSpace(after[i]); {
-		case strings.HasPrefix(after, fmt.Sprintf("%s ", cmdCopy)):
-			instructions = append(instructions, copy{from: before, to: strings.TrimSpace(strings.TrimPrefix(after, cmdCopy))})
+		before := strings.TrimSpace(before[i])
+		after := strings.TrimSpace(after[i])
+
+		var arg string
+		command := func(name string) bool {
+			arg = strings.TrimSpace(strings.TrimPrefix(after, name))
+			return strings.HasPrefix(after, fmt.Sprintf("%s ", name))
+		}
+
+		switch {
+		case command("copy"):
+			instructions = append(instructions, copy{from: before, to: arg})
 		case after == "":
 			instructions = append(instructions, remove{name: before})
 		case after != before:
